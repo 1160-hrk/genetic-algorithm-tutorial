@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.env
+
+# pandas、numpy などの大きなデータ
+*.h5
+*.csv
+*.png
+*.pdf
+*.svg
+*.npy
+*.npc
+/results/
+
+
+# VS Code
+.vscode/
+
+# OS 一般
+.DS_Store
+
+
+# build outputs
+/dist/
+/build/
+/*.egg-info/
+/src/*.egg-info/
+

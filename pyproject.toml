@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genetic-algorithms"
+version = "0.1.0"
+description = "Reusable genetic algorithm core + root finding example"
+authors = [{name = "Your Name", email = "you@example.com"}]
+dependencies = ["numpy>=1.26"]
+readme = "README.md"
+
+[project.optional-dependencies]
+dev = ["pytest", "mypy", "ruff"]
+
+[project.scripts]
+ga-root = "rootfinder.cli:main"
