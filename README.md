@@ -139,18 +139,6 @@ $ docker run --rm ga-dev pytest -q
 
 ---
 
-## 貢献方法
-
-1. Fork してブランチを作成し、修正内容をコミットしてください。
-2. `pre-commit run --all-files` で ruff・mypy・pytest を通してから PR を送ってください。
-3. 新しい演算子を追加する場合は `genalgo/` にファイルを置き、`examples/` に簡単なデモを追加してください。
-
----
-
 ## ライセンス
 
-MIT License です。引用例：
-
-> Tsusaka Y. *genetic‑algorithms: A Minimal, Type‑Checked GA Engine for Scientific Python.* 2025. GitHub repository.
-
-研究発表などで本コードを利用した場合は、上記を参考に引用いただけると助かります。
+MIT License です。
