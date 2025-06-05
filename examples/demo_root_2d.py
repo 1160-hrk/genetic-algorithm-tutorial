@@ -1,30 +1,28 @@
+from __future__ import annotations
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
+
 """
-Demo: Solve a 2‑D nonlinear system with GA (no CLI parameters)
-==============================================================
-System of equations (modifiable):
-    f1(x, y) = x + y − 3  = 0
-    f2(x, y) = x² + y² − 10 = 0
+Demo (2‑D system) + 分布可視化
+==============================
+*GA の進化過程* を 20 世代ごとに XY 平面へ散布図として描画し、
+タイル状 (subplot) に並べて確認するサンプルです。
 
-Expected solution ≈ (2, 1).
+実行方法
+--------
+    $ python examples/demo_root_2d.py
 
-How to run
-----------
-Simply execute the file:
-
-    $ python examples/demo_system.py
-
-Edit the constants in the "# GA CONFIG" section to change population size,
-generation count, search bounds, mutation strength, etc.
+Matplotlib がインストールされていない場合は
+    pip install matplotlib
+で追加してください。
 """
-from __future__ import annotations
 
 import math
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from genalgo.population import Population
 from genalgo.crossover import sbx
@@ -32,64 +30,81 @@ from genalgo.selection import tournament_select
 from genalgo.mutation import gaussian
 
 # ------------------------------------------------------------
-# Define the system of equations
+# 方程式系（変更可）
 # ------------------------------------------------------------
 
 def equations(x: float, y: float) -> Tuple[float, float]:
-    """Return (f1, f2) for given (x, y). Modify as needed."""
-    f1 = x + y - 2**0.5
-    # f2 = x ** 2 + y ** 2 - 10.0
-    f2 = x ** 2 + y ** 2 - 1
+    f1 = x + y - 1      # 直線
+    f2 = x**2 + y**2 - 1.0         # 単位円
     return f1, f2
 
 
 def fitness_fn(vec: np.ndarray) -> float:
-    """Scalar fitness = sum of squares → 0 when both equations are satisfied."""
     x, y = vec
     f1, f2 = equations(x, y)
     return f1 * f1 + f2 * f2
 
+# ------------------------------------------------------------
+# GA 設定
+# ------------------------------------------------------------
+POP_SIZE = 120
+GENERATIONS = 400
+SEED = None
+BOUNDS = ((-2.0, 2.0), (-2.0, 2.0))
+MUT_SIGMA = 0.25
+RECORD_EVERY = 10   # 10 世代ごとに履歴を保存
+PLOT_INTERVAL = 5  # 20 世代間隔で表示
+# ------------------------------------------------------------
+# GA 実行
+# ------------------------------------------------------------
 
-# ------------------------------------------------------------
-# GA CONFIG — tweak these values only
-# ------------------------------------------------------------
-POP_SIZE = 120       # 集団サイズ
-GENERATIONS = 400    # 世代数
-SEED = 0             # 乱数シード
-BOUNDS = ((-5.0, 5.0), (-5.0, 5.0))  # 探索範囲 (x_min, x_max), (y_min, y_max)
-MUTATION_SIGMA = 0.2 # ガウス変異の σ
-
-# ------------------------------------------------------------
-# GA execution
-# ------------------------------------------------------------
-
-def main() -> None:
+def run_ga() -> List[Tuple[int, np.ndarray]]:
     rng = np.random.default_rng(SEED)
-    init_genes = rng.uniform(
-        [b[0] for b in BOUNDS], [b[1] for b in BOUNDS], size=(POP_SIZE, 2)
-    )
+    init = rng.uniform([b[0] for b in BOUNDS], [b[1] for b in BOUNDS], size=(POP_SIZE, 2))
 
-    pop = Population(init_genes, fitness_fn, rng=rng)
-
-    best_gene, best_fit = pop.evolve(
+    pop = Population(init, fitness_fn, rng=rng)
+    pop.evolve(
         generations=GENERATIONS,
+        record_every=RECORD_EVERY,
         selector=lambda f, r: tournament_select(f, k=3, rng=r),
         crossover_op=lambda a, b, r: sbx(a, b, eta=1.0, rng=r),
-        mutation_op=lambda x, r: gaussian(
-            x, sigma=MUTATION_SIGMA, prob=1.0, bounds=BOUNDS, rng=r
-        ),
+        mutation_op=lambda x, r: gaussian(x, sigma=MUT_SIGMA, prob=1.0, bounds=BOUNDS, rng=r),
         bounds=BOUNDS,
         verbose=True,
     )
+    return pop.gene_history
 
-    x, y = best_gene
-    f1, f2 = equations(x, y)
+# ------------------------------------------------------------
+# 可視化
+# ------------------------------------------------------------
 
-    print("\nBest candidate found:")
-    print(f"x = {x:.6f}, y = {y:.6f}")
-    print(f"sum of squares = {best_fit:.3e}")
-    print(f"f1 = {f1:.3e}, f2 = {f2:.3e}")
+def plot_history(history: List[Tuple[int, np.ndarray]]) -> None:
+    # 20 世代ごとに抽出
+    frames = [(g, genes) for g, genes in history if g % PLOT_INTERVAL == 0]
+    n_frames = len(frames)
+    n_cols = math.ceil(math.sqrt(n_frames))
+    n_rows = math.ceil(n_frames / n_cols)
 
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 4 * n_rows))
+    axes = np.atleast_2d(axes)
 
+    for ax in axes.flat[n_frames:]:  # 余分な軸を非表示
+        ax.axis("off")
+
+    for idx, (gen, genes) in enumerate(frames):
+        ax = axes.flat[idx]
+        ax.scatter(genes[:, 0], genes[:, 1], s=10, alpha=0.6)
+        ax.set_title(f"gen {gen}")
+        ax.set_xlim(BOUNDS[0])
+        ax.set_ylim(BOUNDS[1])
+        ax.set_aspect("equal", adjustable="box")
+        ax.grid(True, lw=0.3)
+
+    fig.suptitle("GA population snapshots (every 20 generations)")
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
 if __name__ == "__main__":
-    main()
+    history = run_ga()
+    plot_history(history)
