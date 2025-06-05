@@ -95,13 +95,13 @@ Approx. root: x = 4.4934   |f(x)| = 2.1e-05
 
 ## API の概要
 
-| モジュール                | 主なクラス・関数                        | 内容                      |      |           |
-| -------------------- | ------------------------------- | ----------------------- | ---- | --------- |
-| `genalgo.population` | `Population`                    | `evolve()` を備える GA エンジン |      |           |
-| `genalgo.selection`  | `tournament_select`             | k-トーナメントによる親選択          |      |           |
-| `genalgo.crossover`  | `one_point` / `_noop_crossover` | 実数ベクトル用交叉演算子            |      |           |
-| `genalgo.mutation`   | `gaussian`                      | ガウス変異（範囲クリップ付き）         |      |           |
-| `rootfinder.fitness` | `make_abs_fitness`              |                         | f(x) | を最小化するラッパ |
+| モジュール                | 主なクラス・関数                        | 内容                      |
+| -------------------- | ------------------------------- | ----------------------- |
+| `genalgo.population` | `Population`                    | `evolve()` を備える GA エンジン |
+| `genalgo.selection`  | `tournament_select`             | k-トーナメントによる親選択      |
+| `genalgo.crossover`  | `one_point` / `_noop_crossover` | 実数ベクトル用交叉演算子        |
+| `genalgo.mutation`   | `gaussian`                      | ガウス変異（範囲クリップ付き）  |
+| `rootfinder.fitness` | `make_abs_fitness`              | f(x)を最小化するラッパ |
 
 ---
 

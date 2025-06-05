@@ -8,3 +8,4 @@ pytz
 tzdata
 ipykernel
 numba
+rovibrational-excitation
