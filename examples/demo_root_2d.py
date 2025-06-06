@@ -34,6 +34,7 @@ from genalgo.mutation import gaussian
 # ------------------------------------------------------------
 
 def equations(x: float, y: float) -> Tuple[float, float]:
+    # f1 = x + y - 2**0.5      # 直線
     f1 = x + y - 1      # 直線
     f2 = x**2 + y**2 - 1.0         # 単位円
     return f1, f2
@@ -47,13 +48,15 @@ def fitness_fn(vec: np.ndarray) -> float:
 # ------------------------------------------------------------
 # GA 設定
 # ------------------------------------------------------------
-POP_SIZE = 120
-GENERATIONS = 400
+POP_SIZE = 1000
+GENERATIONS = 40
 SEED = None
 BOUNDS = ((-2.0, 2.0), (-2.0, 2.0))
-MUT_SIGMA = 0.25
-RECORD_EVERY = 10   # 10 世代ごとに履歴を保存
-PLOT_INTERVAL = 5  # 20 世代間隔で表示
+# MUT_SIGMA = 0.25
+MUT_SIGMA = 0.00
+RECORD_EVERY = 1   # 何世代ごとに履歴を保存するか
+PLOT_INTERVAL = 1  # 何世代間隔で表示するか
+ENABLE_EARLY_STOP = False
 # ------------------------------------------------------------
 # GA 実行
 # ------------------------------------------------------------
@@ -66,6 +69,7 @@ def run_ga() -> List[Tuple[int, np.ndarray]]:
     pop.evolve(
         generations=GENERATIONS,
         record_every=RECORD_EVERY,
+        enable_early_stop=ENABLE_EARLY_STOP,
         selector=lambda f, r: tournament_select(f, k=3, rng=r),
         crossover_op=lambda a, b, r: sbx(a, b, eta=1.0, rng=r),
         mutation_op=lambda x, r: gaussian(x, sigma=MUT_SIGMA, prob=1.0, bounds=BOUNDS, rng=r),
@@ -100,7 +104,7 @@ def plot_history(history: List[Tuple[int, np.ndarray]]) -> None:
         ax.set_aspect("equal", adjustable="box")
         ax.grid(True, lw=0.3)
 
-    fig.suptitle("GA population snapshots (every 20 generations)")
+    fig.suptitle("GA population snapshots (every 20 generations)", y=1.0)
     plt.tight_layout()
     plt.show()
 

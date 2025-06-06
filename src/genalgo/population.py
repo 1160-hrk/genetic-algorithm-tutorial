@@ -168,6 +168,7 @@ class Population:
         tol: float = 1e-8,
         target_fit: float | None = None,
         record_every: int | None = None,
+        enable_early_stop: bool = True,
         verbose: bool = False,
     ) -> Tuple[Array, float]:
         """GA を実行して最良個体を返す。
@@ -235,14 +236,15 @@ class Population:
                 print(f"[gen {g+1:4d}] best fitness = {best_now:.4g}")
 
             # 停止判定
-            if target_fit is not None and best_now <= target_fit:
-                break
-            if abs(best_prev - best_now) < tol:
-                stagnate += 1
-                if stagnate >= patience:
+            if enable_early_stop:
+                if target_fit is not None and best_now <= target_fit:
                     break
-            else:
-                stagnate = 0
-            best_prev = best_now
+                if abs(best_prev - best_now) < tol:
+                    stagnate += 1
+                    if stagnate >= patience:
+                        break
+                else:
+                    stagnate = 0
+                best_prev = best_now
 
         return self.best()
