@@ -128,11 +128,13 @@ Approx. root: x = 4.4934   |f(x)| = 2.1e-05
     \end{align}
     ```
     - 評価関数
+
         ```math
             \begin{align}
                 |f_1(x, y)|^2 + |f_2(x, y)|^2 \notag
             \end{align}
         ```
+
     - 計算設定
         ```python
             POP_SIZE = 1000                      # 集団のサイズ
