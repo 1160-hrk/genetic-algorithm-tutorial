@@ -53,10 +53,10 @@ GENERATIONS = 40
 SEED = None
 BOUNDS = ((-2.0, 2.0), (-2.0, 2.0))
 # MUT_SIGMA = 0.25
-MUT_SIGMA = 0.00
+MUT_SIGMA = 0.05
 RECORD_EVERY = 1   # 何世代ごとに履歴を保存するか
 PLOT_INTERVAL = 1  # 何世代間隔で表示するか
-ENABLE_EARLY_STOP = False
+ENABLE_EARLY_STOP = True
 # ------------------------------------------------------------
 # GA 実行
 # ------------------------------------------------------------

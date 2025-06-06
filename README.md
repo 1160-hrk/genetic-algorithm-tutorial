@@ -117,6 +117,40 @@ Approx. root: x = 4.4934   |f(x)| = 2.1e-05
 
 ---
 
+## 使用例
+
+1. 二元連立方程式を解く
+    ```math
+    \begin{align}
+        f_1(x, y) &= x + y - 1 = 0 \notag\\
+        f_2(x, y) &= x^2 + y^2 - 1 = 0 \notag
+    \end{align}
+    ```
+    - 評価関数
+        ```math
+            \begin{align}
+                |f_1(x, y)|^2 + |f_2(x, y)|^2 \notag
+            \end{align}
+        ```
+    - 計算設定
+        ```python
+            POP_SIZE = 1000                      # 集団のサイズ
+            GENERATIONS = 40                     # 計算する世代数
+            SEED = None                          # 初期集団を準備する際の乱数のシード
+            BOUNDS = ((-2.0, 2.0), (-2.0, 2.0))  # x, yの値の範囲
+            MUT_SIGMA = 0.05                     # 突然変異の確率
+            RECORD_EVERY = 1                     # 何世代ごとに履歴を保存するか
+            PLOT_INTERVAL = 1                    # 何世代間隔で表示するか
+            ENABLE_EARLY_STOP = True             # 集団の性質が変わらないときに停止するかどうか
+        ```
+    - 結果
+        以下のグラフは各世代のx, yの値の分布です。$(x, y) = (1, 0)$に集団の分布が偏っていく様子がわかります。
+        ![alt text](gene_history_2d_eq1.png)
+        この方程式の解は$(x, y) = (1, 0), (0, 1)$なので、初期集団を変えると収束する位置が変わります。
+        ![alt text](gene_history_2d_eq2.png)
+
+
+
 ## テストと静的解析
 
 ```bash
