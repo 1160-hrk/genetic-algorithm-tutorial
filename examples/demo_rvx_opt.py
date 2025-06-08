@@ -107,7 +107,7 @@ def main() -> None:
         [b[0] for b in BOUNDS], [b[1] for b in BOUNDS], size=(POP_SIZE, 2)
     )
 
-    pop = Population(init_genes, fitness_fn, rng=rng)
+    pop = Population(init_genes=init_genes, fitness_fn=fitness_fn, rng=rng)
 
     best_gene, best_fit = pop.evolve(
         generations=GENERATIONS,
