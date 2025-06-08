@@ -35,26 +35,52 @@ for gen, genes in pop.gene_history:
 * **変異**   `mutation_op(ind: Array, rng) -> Array`
 
 これらさえ満たせば自由に差し替え可能です。
+
+===========================================================
+
+2025/06/08 改修
+------------
+* **初期化インターフェースを拡張**し、次の 2 通りを選択可能にした。
+
+  1. **従来どおり** `init_genes` 行列を渡す。
+  2. **形状 + 個体数 + 範囲** を渡してライブラリ側で一様乱数生成。
+
+* 追加引数
+  * `n_individuals : int | None` — 個体数
+  * `dim          : int | None` — 遺伝子長
+  * `bounds       : Bounds | None` — (lo, hi) か各遺伝子ごとのリスト
+  * `seed         : int | None` — RNG シード（`rng` より優先）
+
+使い分け例
+-----------
+```python
+# 旧: 行列を自前で作る
+init = np.random.rand(100, 3)
+pop  = Population(init_genes=init, fitness_fn=f)
+
+# 新: 行列を自動生成
+pop = Population(n_individuals=100, dim=3, bounds=(0.0, 1.0), seed=42, fitness_fn=f)
+```
+
+注意
+----
+* `init_genes` が渡された場合はその他の生成パラメータは無視される。
+* どちらも渡されなかった場合は `ValueError` を送出。
 """
+
 from __future__ import annotations
 
 from typing import Callable, Protocol, Sequence, Tuple, List
-
 import numpy as np
 from .selection import tournament_select
 from .crossover import one_point
 from .mutation import gaussian
 
-# ---------------------------------------------------------------------
-# 型エイリアス
-# ---------------------------------------------------------------------
 Array = np.ndarray
 Bounds = Tuple[float, float] | Sequence[Tuple[float, float]] | None
 RNG = np.random.Generator
 
-# ---------------------------------------------------------------------
-# オペレータの Protocol（型インタフェース）
-# ---------------------------------------------------------------------
+# ---------------------- operator protocols ----------------------------
 class SelectOp(Protocol):
     def __call__(self, fitness: Array, rng: RNG) -> int: ...
 
@@ -62,97 +88,104 @@ class CrossOp(Protocol):
     def __call__(self, p1: Array, p2: Array, rng: RNG) -> Tuple[Array, Array]: ...
 
 class MutOp(Protocol):
-    def __call__(self, individual: Array, rng: RNG) -> Array: ...
+    def __call__(self, ind: Array, rng: RNG) -> Array: ...
 
-# 1 遺伝子用のデフォルト交叉（何もしない）
+
+# 1 次元用交叉スキップ
 
 def _noop_crossover(a: Array, b: Array, rng: RNG) -> Tuple[Array, Array]:
     return a.copy(), b.copy()
 
-# ---------------------------------------------------------------------
-# Population クラス
-# ---------------------------------------------------------------------
+
+# ---------------------------- Population ------------------------------
 class Population:
-    """遺伝的アルゴリズム (GA) 用の軽量エンジン。
+    """遺伝的アルゴリズム用の集団クラス。
 
-    Parameters
-    ----------
-    init_genes : ndarray, shape = (N, dim)
-        初期集団。各行が 1 個体の遺伝子ベクトルです。
+    Parameters (どちらか必須)
+    -------------------------
+    init_genes : ndarray, optional
+        `(N, dim)` 形状の初期集団行列。
+    n_individuals : int, optional
+        個体数。`init_genes` が無い場合は必須。
+    dim : int, optional
+        遺伝子長。`init_genes` が無い場合は必須。
+    bounds : tuple | list, default (0.0, 1.0)
+        初期乱数を生成する一様区間。グローバル `(lo, hi)` か
+        `[(lo0, hi0), (lo1, hi1), ...]`。
+    seed : int | None
+        乱数シード。`rng` より優先。
+    rng : numpy.random.Generator | None
+        RNG インスタンス。未指定なら `seed` から生成。
     fitness_fn : Callable[[ndarray], float]
-        個体 → スカラー適応度を返す関数（小さいほど良いと仮定）。
-    rng : numpy.random.Generator, optional
-        乱数生成器。省略時は `np.random.default_rng()` が生成されます。
-
-    Notes
-    -----
-    * 適応度評価は `np.apply_along_axis` でベクトル化されます。
-    * 演算子はデフォルトで `tournament_select` / `one_point` / `gaussian`。
-      パラメータ `evolve()` で自由に置き換え可能です。
-    * `record_every` を指定すると、指定世代ごとに genes のコピーを
-      `self.gene_history` に保存します。メモリ消費には注意してください。
+        個体 → スカラー適応度関数（小さいほど良い）。
     """
 
-    # ------------------------------ 初期化 ----------------------------
     def __init__(
         self,
-        init_genes: Array,
-        fitness_fn: Callable[[Array], float],
         *,
+        fitness_fn: Callable[[Array], float],
+        init_genes: Array | None = None,
+        n_individuals: int | None = None,
+        dim: int | None = None,
+        bounds: Bounds = (0.0, 1.0),
+        seed: int | None = None,
         rng: RNG | None = None,
     ) -> None:
-        self.rng: RNG = rng or np.random.default_rng()
-        self.genes: Array = init_genes.copy()
-        self.fitness_fn = fitness_fn
-        self.fitness: Array = np.apply_along_axis(fitness_fn, 1, self.genes)
+        # RNG 準備
+        if rng is None:
+            rng = np.random.default_rng(seed)
+        self.rng: RNG = rng
 
-        # 履歴格納用リスト (gen, genes)
+        # --- 初期集団生成 ------------------------------------------
+        if init_genes is not None:
+            self.genes = init_genes.copy()
+        else:
+            if n_individuals is None or dim is None:
+                raise ValueError("init_genes を与えない場合は n_individuals と dim が必要です")
+            # bounds 解釈
+            if bounds is None:
+                lo, hi = 0.0, 1.0
+                low = np.full(dim, lo)
+                high = np.full(dim, hi)
+            elif isinstance(bounds[0], (int, float)):
+                lo, hi = bounds  # type: ignore[misc]
+                low = np.full(dim, lo)
+                high = np.full(dim, hi)
+            else:
+                low = np.array([b[0] for b in bounds])
+                high = np.array([b[1] for b in bounds])
+            self.genes = rng.uniform(low, high, size=(n_individuals, dim))
+
+        # 適応度計算
+        self.fitness_fn = fitness_fn
+        self.fitness = np.apply_along_axis(fitness_fn, 1, self.genes)
+
+        # 履歴
         self.gene_history: List[Tuple[int, Array]] = []
 
-    # ------------------------- ユーティリティ ------------------------
+    # ------------------------------------------------------------------
     def best(self) -> Tuple[Array, float]:
-        """最良個体とその適応度を返す。"""
         idx = int(np.argmin(self.fitness))
         return self.genes[idx], float(self.fitness[idx])
 
-    # ---------------------- 1 世代更新処理 ---------------------------
-    def _next_generation(
-        self,
-        *,
-        selector: SelectOp,
-        crossover_op: CrossOp,
-        mutation_op: MutOp,
-        crossover_rate: float,
-    ) -> None:
-        """内部用 — 1 世代分の更新を行う。"""
+    # internal ----
+    def _next_generation(self, *, selector: SelectOp, crossover_op: CrossOp, mutation_op: MutOp, crossover_rate: float) -> None:
         pop_n, _ = self.genes.shape
-        new_genes = np.empty_like(self.genes)
-
-        # --- エリート保持（index 0 にコピー）
-        new_genes[0] = self.best()[0]
-
+        new = np.empty_like(self.genes)
+        new[0] = self.best()[0]
         i = 1
         while i < pop_n:
             p1 = self.genes[selector(self.fitness, self.rng)]
             p2 = self.genes[selector(self.fitness, self.rng)]
-
-            # 交叉
-            if self.rng.random() < crossover_rate:
-                c1, c2 = crossover_op(p1, p2, self.rng)
-            else:
-                c1, c2 = p1.copy(), p2.copy()
-
-            # 変異
-            new_genes[i] = mutation_op(c1, self.rng)
+            c1, c2 = (crossover_op(p1, p2, self.rng) if self.rng.random() < crossover_rate else (p1.copy(), p2.copy()))
+            new[i] = mutation_op(c1, self.rng)
             if i + 1 < pop_n:
-                new_genes[i + 1] = mutation_op(c2, self.rng)
+                new[i + 1] = mutation_op(c2, self.rng)
             i += 2
-
-        # 集団更新 & 適応度再計算
-        self.genes = new_genes
+        self.genes = new
         self.fitness = np.apply_along_axis(self.fitness_fn, 1, self.genes)
 
-    # ------------------------- 進化メイン ----------------------------
+    # public ----
     def evolve(
         self,
         generations: int,
@@ -171,71 +204,26 @@ class Population:
         enable_early_stop: bool = True,
         verbose: bool = False,
     ) -> Tuple[Array, float]:
-        """GA を実行して最良個体を返す。
-
-        Parameters
-        ----------
-        generations : int
-            最大世代数。
-        selector, crossover_op, mutation_op : callable, optional
-            独自演算子を注入したい場合に指定。
-        crossover_rate : float
-            交叉を適用する確率 (0–1)。
-        mutation_prob, mutation_sigma : float
-            `gaussian` 変異用のパラメータ。独自 mutation を使うなら無視されます。
-        bounds : tuple or None
-            変異後にクリップする範囲。グローバル (lo, hi) または
-            各遺伝子ごとのリスト `[(lo0, hi0), ...]`。
-        patience, tol : int, float
-            改善停滞による早期停止のしきい値。
-        target_fit : float or None
-            適応度がこの値以下になったら停止。
-        record_every : int or None
-            *n* を指定すると *n* 世代ごとに遺伝子行列を
-            `self.gene_history` に保存します。メモリに注意。
-        verbose : bool
-            True で 10 世代ごとに進捗を表示。
-        """
-        # --- デフォルト演算子決定 -----------------------------------
+        # 演算子デフォルト
         if crossover_op is None:
-            crossover_op = (
-                _noop_crossover
-                if self.genes.shape[1] < 2
-                else lambda a, b, r: one_point(a, b, rng=r)
-            )
-
+            crossover_op = _noop_crossover if self.genes.shape[1] < 2 else lambda a, b, r: one_point(a, b, rng=r)
         if mutation_op is None:
-            def mutation_op(x: Array, rng: RNG) -> Array:  # type: ignore[override]
-                return gaussian(x, sigma=mutation_sigma, prob=mutation_prob, bounds=bounds, rng=rng)
+            mutation_op = lambda x, r: gaussian(x, sigma=mutation_sigma, prob=mutation_prob, bounds=bounds, rng=r)  # type: ignore[override]
 
-        # --- 進化ループ ---------------------------------------------
         best_prev = self.best()[1]
         stagnate = 0
-
-        if record_every == 0:
-            record_every = None  # 0 は無効扱い
-        if record_every is not None:
-            # 世代 0 (初期) を保存
+        if record_every and record_every > 0:
             self.gene_history.append((0, self.genes.copy()))
 
-        for g in range(generations):
-            self._next_generation(
-                selector=selector,
-                crossover_op=crossover_op,
-                mutation_op=mutation_op,
-                crossover_rate=crossover_rate,
-            )
+        for g in range(1, generations + 1):
+            self._next_generation(selector=selector, crossover_op=crossover_op, mutation_op=mutation_op, crossover_rate=crossover_rate)
+            if record_every and g % record_every == 0:
+                self.gene_history.append((g, self.genes.copy()))
 
-            # 履歴記録
-            if record_every is not None and (g + 1) % record_every == 0:
-                self.gene_history.append((g + 1, self.genes.copy()))
-
-            # 進捗表示
             best_now = self.best()[1]
-            if verbose and (g % 10 == 9 or g == generations - 1):
-                print(f"[gen {g+1:4d}] best fitness = {best_now:.4g}")
+            if verbose and (g % 10 == 0 or g == generations):
+                print(f"[gen {g:4d}] best fitness = {best_now:.4g}")
 
-            # 停止判定
             if enable_early_stop:
                 if target_fit is not None and best_now <= target_fit:
                     break
@@ -246,5 +234,4 @@ class Population:
                 else:
                     stagnate = 0
                 best_prev = best_now
-
         return self.best()

@@ -1,4 +1,4 @@
-# genetic-algorithms — 遺伝的アルゴリズムの理解のためのPythonコード
+# genetic-algorithm-tutorial — 遺伝的アルゴリズムの理解のためのPythonコード
 
 NumPy ベースの科学計算で利用できる **遺伝的アルゴリズム (GA) エンジン** です。Python で数値最適化を行う学生・研究者向けに、最小限のコードで遺伝的アルゴリズムを使用しながら学べる構成にしました。
 
@@ -18,7 +18,7 @@ NumPy ベースの科学計算で利用できる **遺伝的アルゴリズム
 
 ## 目次
 
-- [genetic-algorithms — 遺伝的アルゴリズムの理解のためのPythonコード](#genetic-algorithms--遺伝的アルゴリズムの理解のためのpythonコード)
+- [genetic-algorithm-tutorial — 遺伝的アルゴリズムの理解のためのPythonコード](#genetic-algorithm-tutorial--遺伝的アルゴリズムの理解のためのpythonコード)
   - [特長](#特長)
   - [目次](#目次)
   - [インストール](#インストール)
@@ -39,17 +39,15 @@ NumPy ベースの科学計算で利用できる **遺伝的アルゴリズム
 
 ```bash
 # リポジトリの取得
-$ git clone https://github.com/yourname/genetic-algorithms.git
-$ cd genetic-algorithms
+$ git clone https://github.com/yourname/genetic-algorithm-tutorial.git
+$ cd genetic-algorithm-tutorial
 
 # 仮想環境の作成（推奨）
-$ python -m venv .venv && source .venv/bin/activate
-
-# 開発用依存を含めてインストール
-$ pip install -e .[dev]
+$ docker compose -f .devcontainer/docker-compose.yml build          # first time only
+$ docker compose up -d                                              # start the dev container
 ```
 
-Python 3.9 以降で動作を確認しています。
+Python 3.12 で動作を確認しています。
 
 ---
 
@@ -62,8 +60,8 @@ import math, numpy as np
 from genalgo.population import Population
 from rootfinder.fitness import make_abs_fitness
 
-f = lambda x: math.cos(x) - x  # 目的関数
-genes0 = np.random.default_rng(0).uniform(0, 2, (100, 1))
+f = lambda x: math.cos(x) - x  # 根を見つけたい関数
+genes0 = np.random.default_rng(0).uniform(0, 2, (100, 1))  # 初期集団
 fitness = make_abs_fitness(f)
 
 pop = Population(genes0, fitness)
