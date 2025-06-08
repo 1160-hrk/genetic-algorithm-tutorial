@@ -65,7 +65,7 @@ def run_ga() -> List[Tuple[int, np.ndarray]]:
     rng = np.random.default_rng(SEED)
     init = rng.uniform([b[0] for b in BOUNDS], [b[1] for b in BOUNDS], size=(POP_SIZE, 2))
 
-    pop = Population(init, fitness_fn, rng=rng)
+    pop = Population(init_genes=init, fitness_fn=fitness_fn, rng=rng)
     pop.evolve(
         generations=GENERATIONS,
         record_every=RECORD_EVERY,
