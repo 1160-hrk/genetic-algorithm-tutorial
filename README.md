@@ -10,8 +10,7 @@
 
 | タスク                          | スクリプト                              | 所要時間 |
 |---------------------------------|-----------------------------------------|-----------|
-| 1 変数方程式 `cos x - x = 0`   | `python examples/demo_root_1d.py`       | <1 s      |
-| 進化の様子を散布図で確認         | `python examples/demo_root_1d_plot.py`  | 数秒       |
+| 1 変数方程式 `cos x - x = 0`の進化の様子を散布図で確認         | `python examples/demo_root_1d_plot.py`  | 数秒       |
 | 2 変数連立方程式                | `python examples/demo_root_2d.py`       | 数秒       |
 | 評価関数だけ変えて最小化         | 5 行の Python                           | 任意       |
 
