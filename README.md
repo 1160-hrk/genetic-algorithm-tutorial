@@ -1,4 +1,4 @@
-# genetic-algorithm-tutorial — 学びながら使える遺伝的アルゴリズム集
+# genetic-algorithm-tutorial — 遺伝的アルゴリズムの学習のためのPythonコード
 
 > NumPy だけで動く **最小構成 GA ライブラリ**。  
 > 計算物理・実験データ解析・機械学習ハイパーパラメータ探索など、
