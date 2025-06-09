@@ -1,4 +1,4 @@
-"""population.py  —  汎用 GA エンジン（履歴記録機能付き）
+"""src/genealgo/population.py  —  汎用 GA エンジン（履歴記録機能付き）
 ====================================================
 このモジュールは **演算子（選択・交叉・変異）を関数として注入**できる
 柔軟な GA コアを提供します。2025‑06 版では、
@@ -66,21 +66,36 @@ pop = Population(n_individuals=100, dim=3, bounds=(0.0, 1.0), seed=42, fitness_f
 ----
 * `init_genes` が渡された場合はその他の生成パラメータは無視される。
 * どちらも渡されなかった場合は `ValueError` を送出。
-"""
+# ==============================================================
+# 2025/0608 17:00 再改修
+# 汎用 GA エンジン  +  自己適応変異サポート
+#
+# * self_adaptive=True にすると
+#       ・self.sigmas (N,) を内部保持
+#       ・mutation_op が無視され、gaussian_sa が呼ばれる
+# * 既存コードは self_adaptive=False（既定）でそのまま動作
+# ==============================================================
+================================================================
 
+* self_adaptive=True で個体ごとに σ を進化 (`gaussian_sa`)
+* record_every=N で N 世代ごとに genes を履歴保存
+* tau_scale / sigma_floor で自己適応パラメータを外から調整
+"""
 from __future__ import annotations
 
-from typing import Callable, Protocol, Sequence, Tuple, List
 import numpy as np
+from typing import Callable, Protocol, Sequence, Tuple, List
+
 from .selection import tournament_select
 from .crossover import one_point
-from .mutation import gaussian
+from .mutation import gaussian, gaussian_sa
 
-Array = np.ndarray
+Array  = np.ndarray
 Bounds = Tuple[float, float] | Sequence[Tuple[float, float]] | None
-RNG = np.random.Generator
+RNG    = np.random.Generator
 
-# ---------------------- operator protocols ----------------------------
+
+# ---------- operator protocols ----------
 class SelectOp(Protocol):
     def __call__(self, fitness: Array, rng: RNG) -> int: ...
 
@@ -91,112 +106,123 @@ class MutOp(Protocol):
     def __call__(self, ind: Array, rng: RNG) -> Array: ...
 
 
-# 1 次元用交叉スキップ
-
 def _noop_crossover(a: Array, b: Array, rng: RNG) -> Tuple[Array, Array]:
     return a.copy(), b.copy()
 
 
-# ---------------------------- Population ------------------------------
+# ---------------- Population ------------
 class Population:
-    """遺伝的アルゴリズム用の集団クラス。
+    """GA 集団クラス（固定σ or 自己適応σ をフラグで切替）"""
 
-    Parameters (どちらか必須)
-    -------------------------
-    init_genes : ndarray, optional
-        `(N, dim)` 形状の初期集団行列。
-    n_individuals : int, optional
-        個体数。`init_genes` が無い場合は必須。
-    dim : int, optional
-        遺伝子長。`init_genes` が無い場合は必須。
-    bounds : tuple | list, default (0.0, 1.0)
-        初期乱数を生成する一様区間。グローバル `(lo, hi)` か
-        `[(lo0, hi0), (lo1, hi1), ...]`。
-    seed : int | None
-        乱数シード。`rng` より優先。
-    rng : numpy.random.Generator | None
-        RNG インスタンス。未指定なら `seed` から生成。
-    fitness_fn : Callable[[ndarray], float]
-        個体 → スカラー適応度関数（小さいほど良い）。
-    """
+    # --- static default selector ----------------------------------
+    @staticmethod
+    def _default_selector(fitness: Array, rng: RNG) -> int:
+        return tournament_select(fitness, k=3, rng=rng)
 
+    # --- ctor -----------------------------------------------------
     def __init__(
         self,
         *,
         fitness_fn: Callable[[Array], float],
+        # 初期集団（行列）または自動生成パラメータ
         init_genes: Array | None = None,
         n_individuals: int | None = None,
         dim: int | None = None,
         bounds: Bounds = (0.0, 1.0),
+        # RNG
         seed: int | None = None,
         rng: RNG | None = None,
-    ) -> None:
-        # RNG 準備
-        if rng is None:
-            rng = np.random.default_rng(seed)
-        self.rng: RNG = rng
+        # 自己適応 GA オプション
+        self_adaptive: bool = False,
+        init_sigma: float = 0.1,
+        sigma_floor: float = 1e-5,
+        tau_scale: float = 0.3,
+    ):
+        self.rng: RNG = rng or np.random.default_rng(seed)
 
-        # --- 初期集団生成 ------------------------------------------
+        # ----- genes ----------
         if init_genes is not None:
             self.genes = init_genes.copy()
         else:
             if n_individuals is None or dim is None:
-                raise ValueError("init_genes を与えない場合は n_individuals と dim が必要です")
-            # bounds 解釈
-            if bounds is None:
-                lo, hi = 0.0, 1.0
-                low = np.full(dim, lo)
-                high = np.full(dim, hi)
-            elif isinstance(bounds[0], (int, float)):
+                raise ValueError("init_genes を与えない場合は n_individuals と dim が必要")
+            if isinstance(bounds[0], (int, float)):
                 lo, hi = bounds  # type: ignore[misc]
-                low = np.full(dim, lo)
+                low  = np.full(dim, lo)
                 high = np.full(dim, hi)
             else:
-                low = np.array([b[0] for b in bounds])
+                low  = np.array([b[0] for b in bounds])
                 high = np.array([b[1] for b in bounds])
-            self.genes = rng.uniform(low, high, size=(n_individuals, dim))
+            self.genes = self.rng.uniform(low, high, size=(n_individuals, dim))
 
-        # 適応度計算
+        # ----- self-adaptive σ ----------
+        self.self_adaptive = self_adaptive
+        self.sigmas = np.full(len(self.genes), init_sigma) if self_adaptive else None  # type: ignore
+        self.sigma_floor = sigma_floor
+        self.tau_scale   = tau_scale
+        self.bounds      = bounds
+
+        # ----- fitness ----------
         self.fitness_fn = fitness_fn
         self.fitness = np.apply_along_axis(fitness_fn, 1, self.genes)
 
-        # 履歴
+        # ----- history ----------
         self.gene_history: List[Tuple[int, Array]] = []
 
-    # ------------------------------------------------------------------
+    # -------- utilities -----------------
     def best(self) -> Tuple[Array, float]:
         idx = int(np.argmin(self.fitness))
         return self.genes[idx], float(self.fitness[idx])
 
-    # internal ----
-    def _next_generation(self, *, selector: SelectOp, crossover_op: CrossOp, mutation_op: MutOp, crossover_rate: float) -> None:
-        pop_n, _ = self.genes.shape
-        new = np.empty_like(self.genes)
-        new[0] = self.best()[0]
+    # -------- one generation ------------
+    def _next_generation(
+        self,
+        *,
+        selector: SelectOp,
+        crossover_op: CrossOp,
+        mutation_op: MutOp,
+        crossover_rate: float,
+    ) -> None:
+        N, _ = self.genes.shape
+        new_genes = np.empty_like(self.genes)
+        new_genes[0] = self.best()[0]  # elite
+
         i = 1
-        while i < pop_n:
+        while i < N:
             p1 = self.genes[selector(self.fitness, self.rng)]
             p2 = self.genes[selector(self.fitness, self.rng)]
-            c1, c2 = (crossover_op(p1, p2, self.rng) if self.rng.random() < crossover_rate else (p1.copy(), p2.copy()))
-            new[i] = mutation_op(c1, self.rng)
-            if i + 1 < pop_n:
-                new[i + 1] = mutation_op(c2, self.rng)
+            c1, c2 = (crossover_op(p1, p2, self.rng)
+                      if self.rng.random() < crossover_rate else (p1.copy(), p2.copy()))
+
+            if self.self_adaptive:
+                self.genes[i] = c1
+                if i + 1 < N:
+                    self.genes[i + 1] = c2
+                gaussian_sa(i, self, tau_scale=self.tau_scale, rng=self.rng)
+                if i + 1 < N:
+                    gaussian_sa(i + 1, self, tau_scale=self.tau_scale, rng=self.rng)
+            else:
+                new_genes[i] = mutation_op(c1, self.rng)
+                if i + 1 < N:
+                    new_genes[i + 1] = mutation_op(c2, self.rng)
             i += 2
-        self.genes = new
+
+        if not self.self_adaptive:
+            self.genes = new_genes
+
         self.fitness = np.apply_along_axis(self.fitness_fn, 1, self.genes)
 
-    # public ----
+    # ------------- evolve --------------
     def evolve(
         self,
         generations: int,
         *,
-        selector: SelectOp = tournament_select,
+        selector: SelectOp = _default_selector.__func__,  # static method unwrap
         crossover_op: CrossOp | None = None,
         mutation_op: MutOp | None = None,
-        crossover_rate: float = 0.9,
+        crossover_rate: float = 0.6,
         mutation_prob: float = 0.1,
         mutation_sigma: float = 0.1,
-        bounds: Bounds = None,
         patience: int = 100,
         tol: float = 1e-8,
         target_fit: float | None = None,
@@ -204,19 +230,33 @@ class Population:
         enable_early_stop: bool = True,
         verbose: bool = False,
     ) -> Tuple[Array, float]:
-        # 演算子デフォルト
+
         if crossover_op is None:
-            crossover_op = _noop_crossover if self.genes.shape[1] < 2 else lambda a, b, r: one_point(a, b, rng=r)
+            crossover_op = (_noop_crossover if self.genes.shape[1] < 2
+                            else lambda a, b, r: one_point(a, b, rng=r))
+
         if mutation_op is None:
-            mutation_op = lambda x, r: gaussian(x, sigma=mutation_sigma, prob=mutation_prob, bounds=bounds, rng=r)  # type: ignore[override]
+            mutation_op = lambda x, r: gaussian(
+                x, sigma=mutation_sigma, prob=mutation_prob,
+                bounds=self.bounds, rng=r)  # type: ignore[override]
 
         best_prev = self.best()[1]
-        stagnate = 0
-        if record_every and record_every > 0:
+        stagnate  = 0
+        if record_every:
             self.gene_history.append((0, self.genes.copy()))
 
         for g in range(1, generations + 1):
-            self._next_generation(selector=selector, crossover_op=crossover_op, mutation_op=mutation_op, crossover_rate=crossover_rate)
+            self._next_generation(
+                selector=selector,
+                crossover_op=crossover_op,
+                mutation_op=mutation_op,
+                crossover_rate=crossover_rate,
+            )
+
+            # --- σ floor ---------------
+            if self.self_adaptive and self.sigma_floor > 0.0:
+                np.maximum(self.sigmas, self.sigma_floor, out=self.sigmas)
+
             if record_every and g % record_every == 0:
                 self.gene_history.append((g, self.genes.copy()))
 
@@ -234,4 +274,5 @@ class Population:
                 else:
                     stagnate = 0
                 best_prev = best_now
+
         return self.best()

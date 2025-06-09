@@ -33,7 +33,7 @@ from rootfinder.fitness import make_abs_fitness
 USE_INIT_GENES = True      # False にすると自動生成モード
 POP_SIZE = 100
 GENERATIONS = 10
-MUT_SIGMA = 0.05
+MUT_SIGMA = 0.01
 MUT_PROB = 1
 SNAPSHOT_EVERY = 1        # プロット間隔（世代数）
 SEED = None
