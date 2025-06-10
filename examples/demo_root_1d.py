@@ -22,7 +22,7 @@ SCRIPT_DIR = os.path.dirname(__file__)
 sys.path.insert(0, os.path.abspath(os.path.join(SCRIPT_DIR, "../src")))
 
 from genalgo.population import Population
-from genalgo.selection import tournament_select
+from genalgo.selection import tournament_select, roulette_select
 from genalgo.crossover import sbx
 from genalgo.mutation import gaussian
 from rootfinder.fitness import make_abs_fitness
@@ -33,11 +33,13 @@ from rootfinder.fitness import make_abs_fitness
 USE_INIT_GENES = True      # False にすると自動生成モード
 POP_SIZE = 100
 GENERATIONS = 10
-MUT_SIGMA = 0.01
+MUT_SIGMA = 0.05
 MUT_PROB = 1
 SNAPSHOT_EVERY = 1        # プロット間隔（世代数）
 SEED = None
 BOUNDS = (0.0, 2.0)        # 探索区間 [lo, hi]
+SELECTOR = "Tournament"  # or "Roulette"
+SELECTOR = "Roulette"
 
 fitness_fn = make_abs_fitness(lambda x: math.cos(x) - x)
 
@@ -59,10 +61,13 @@ def run_ga() -> List[Tuple[int, np.ndarray]]:
             seed=SEED,
             fitness_fn=fitness_fn,
         )
-
+    if SELECTOR == "Tournament":
+        selector = lambda f, r: tournament_select(f, k=3, rng=r)
+    elif SELECTOR == "Roulette":
+        selector = lambda f, r: roulette_select(f, r)
     pop.evolve(
         generations=GENERATIONS,
-        selector=lambda f, r: tournament_select(f, k=3, rng=r),
+        selector=selector,
         crossover_op=lambda a, b, r: sbx(a, b, eta=0.6, rng=r),
         mutation_op=lambda x, r: gaussian(x, sigma=MUT_SIGMA, prob=MUT_PROB, bounds=BOUNDS, rng=r),
         record_every=SNAPSHOT_EVERY,

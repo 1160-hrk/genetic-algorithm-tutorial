@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 
 from genalgo.population import Population
 from genalgo.crossover import sbx
-from genalgo.selection import tournament_select
+from genalgo.selection import tournament_select, roulette_select
 from genalgo.mutation import gaussian
 
 # ------------------------------------------------------------
@@ -53,7 +53,10 @@ GENERATIONS = 40
 SEED = None
 BOUNDS = ((-2.0, 2.0), (-2.0, 2.0))
 # MUT_SIGMA = 0.25
-MUT_SIGMA = 0.05
+MUT_SIGMA = 0.5
+SELECTOR = "Tournament"  # or "Roulette"
+SELECTOR = "Roulette"
+
 RECORD_EVERY = 1   # 何世代ごとに履歴を保存するか
 PLOT_INTERVAL = 1  # 何世代間隔で表示するか
 ENABLE_EARLY_STOP = True
@@ -66,14 +69,17 @@ def run_ga() -> List[Tuple[int, np.ndarray]]:
     init = rng.uniform([b[0] for b in BOUNDS], [b[1] for b in BOUNDS], size=(POP_SIZE, 2))
 
     pop = Population(init_genes=init, fitness_fn=fitness_fn, rng=rng)
+    if SELECTOR == "Tournament":
+        selector = lambda f, r: tournament_select(f, k=3, rng=r)
+    elif SELECTOR == "Roulette":
+        selector = lambda f, r: roulette_select(f, r)
     pop.evolve(
         generations=GENERATIONS,
         record_every=RECORD_EVERY,
         enable_early_stop=ENABLE_EARLY_STOP,
-        selector=lambda f, r: tournament_select(f, k=3, rng=r),
+        selector=selector,
         crossover_op=lambda a, b, r: sbx(a, b, eta=1.0, rng=r),
         mutation_op=lambda x, r: gaussian(x, sigma=MUT_SIGMA, prob=1.0, bounds=BOUNDS, rng=r),
-        bounds=BOUNDS,
         verbose=True,
     )
     return pop.gene_history
