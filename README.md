@@ -54,14 +54,13 @@ $ python -m venv .venv && source .venv/bin/activate
 # 開発依存ごとインストール
 $ pip install -e .[dev]
 ```
-*Python 3.12 でテストしています。*
+*Python 3.12 でテスト済みです。*
 
 ---
 
 ## 2. クイックスタート
- クイックスタート
 
-### 2‑1 たった 5 行で根を探す
+### 2‑1  5 行で根を探す
 ```python
 import math, numpy as np
 from genalgo.population import Population
@@ -94,7 +93,7 @@ $ ga-root --func "math.sin(x) - 0.3" --pop 120 --gens 300
 
 ---
 
-## 4. GA の中身（ざっくり）
+## 4. GA の中身
 1. **初期化** — 一様乱数で `(N, dim)` 行列を生成
 2. **評価** — `fitness_fn` を行ごとに適用 → `(N,)` スカラー
 3. **親選択** — k トーナメント or ルーレット or ランク

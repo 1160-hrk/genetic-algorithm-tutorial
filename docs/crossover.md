@@ -101,7 +101,7 @@ c_2 = 0.5[(1-\beta)p_1 + (1+\beta)p_2]
 ---
 
 <a name="comparison"></a>
-## 5. どれを使えばいい？
+## 5. どのように使い分けるか
 
 | 問題タイプ            | 推奨演算子 | 理由                                    |
 |-----------------------|------------|-----------------------------------------|
@@ -121,5 +121,6 @@ pop.evolve(...,
 
 ### 参考文献
 * Deb, K., & Agrawal, R.B. (1995). **Simulated Binary Crossover for Continuous Search Space.** *Complex Systems,* 9(2), 115–148.
-* Eshelman, L.J., & Schaffer, J.D. (1993). **Real-Coded Genetic Algorithms and Interval Schemata.** *Foundations of Genetic Algorithms 2*, 187–202.  （→ BLX‑α）
+* Eshelman, L.J., & Schaffer, J.D. (1993). **Real-Coded Genetic Algorithms and Interval Schemata.** *Foundations of Genetic Algorithms 2*, 187–202.
+  （→ BLX‑α）
 
